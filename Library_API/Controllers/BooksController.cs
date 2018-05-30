@@ -5,6 +5,7 @@ using Library_API.Helpers;
 using Library_API.Models;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,9 +17,11 @@ namespace Library_API.Controllers
     [Route("api/authors/{authorID}/books")]
     public class BooksController : Controller
     {
+        ILogger<BooksController> logger;
         public ILibraryRepository libraryRepository;
-        public BooksController(ILibraryRepository libraryRepository)
+        public BooksController(ILibraryRepository libraryRepository, ILogger<BooksController> logger)
         {
+            this.logger = logger;
             this.libraryRepository = libraryRepository;
         }
 
@@ -186,7 +189,9 @@ namespace Library_API.Controllers
             }
 
             var bookToPatch = Mapper.Map<BookUpdationDto>(bookforAuthor);
-            patchDoc.ApplyTo(bookToPatch, ModelState);
+            ////patchDoc.ApplyTo(bookToPatch, ModelState);
+
+            patchDoc.ApplyTo(bookToPatch);
 
             if (bookToPatch.Title == bookToPatch.Description)
             {

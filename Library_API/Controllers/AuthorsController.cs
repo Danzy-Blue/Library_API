@@ -1,9 +1,11 @@
 ﻿using AutoMapper;
 using Library.API.Entities;
 using Library.API.Services;
+using Library_API.Helpers;
 using Library_API.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,13 +17,16 @@ namespace Library_API.Controllers
     public class AuthorsController : Controller
     {
         public ILibraryRepository libraryRepository;
-        public AuthorsController(ILibraryRepository libraryRepository)
+        private IUrlHelper urlHelper;
+
+        public AuthorsController(ILibraryRepository libraryRepository, IUrlHelper urlHelper)
         {
             this.libraryRepository = libraryRepository;
+            this.urlHelper = urlHelper;
         }
 
         [HttpGet("{authorID}", Name = "GetAuthor")]
-        public IActionResult GetAuthor(Guid authorID)
+        public IActionResult GetAuthor([FromRoute]Guid authorID)
         {
             if (!libraryRepository.AuthorExists(authorID))
             {
@@ -37,15 +42,65 @@ namespace Library_API.Controllers
 
         }
 
-        [HttpGet()]
-        public IActionResult GetAuthors()
-        {
 
-            var authorsFromRepo = libraryRepository.GetAuthors();
+        [HttpGet(Name = "GetAuthors")]
+        ////public IActionResult GetAuthors([FromQuery(Name = "Page")]int pageNumber = 1, [FromQuery]int pageSize = 10)
+        public IActionResult GetAuthors(AuthorsResourceParameters authorsResourceParameters)
+        {
+            var authorsFromRepo = libraryRepository.GetAuthors(authorsResourceParameters);
+            var previousPageLink = authorsFromRepo.HasPrevious ? CreateAuthorsResourceUri(authorsResourceParameters, ResourceUriType.PreviousPage) : null;
+            var nextPageLink = authorsFromRepo.HasNext ? CreateAuthorsResourceUri(authorsResourceParameters, ResourceUriType.NextPage) : null;
+            var paginationMetadata = new
+            {
+                totalCount = authorsFromRepo.TotalCount,
+                pageSize = authorsFromRepo.PageSize,
+                currentPage = authorsFromRepo.CurrentPage,
+                totalPages = authorsFromRepo.TotalPages,
+                previousPageLink = previousPageLink,
+                nextPageLink = nextPageLink
+            };
+
+            Response.Headers.Add("X-Pagination", JsonConvert.SerializeObject(paginationMetadata));
+
             var authors = Mapper.Map<IEnumerable<AuthorDto>>(authorsFromRepo);
 
             return new JsonResult(authors);
 
+        }
+
+        private string CreateAuthorsResourceUri(AuthorsResourceParameters authorsResourceParameters, ResourceUriType type)
+        {
+            switch (type)
+            {
+                case ResourceUriType.PreviousPage:
+                    return urlHelper.Link("GetAuthors",
+                        new
+                        {
+                            searchQuery = authorsResourceParameters.SearchQuery,
+                            genre = authorsResourceParameters.Genre,
+                            pageNumber = authorsResourceParameters.PageNumber - 1,
+                            pageSize = authorsResourceParameters.PageSize
+                        });
+
+                case ResourceUriType.NextPage:
+                    return urlHelper.Link("GetAuthors",
+                        new
+                        {
+                            searchQuery = authorsResourceParameters.SearchQuery,
+                            genre = authorsResourceParameters.Genre,
+                            pageNumber = authorsResourceParameters.PageNumber + 1,
+                            pageSize = authorsResourceParameters.PageSize
+                        });
+                default:
+                    return urlHelper.Link("GetAuthors",
+                        new
+                        {
+                            searchQuery = authorsResourceParameters.SearchQuery,
+                            genre = authorsResourceParameters.Genre,
+                            pageNumber = authorsResourceParameters.PageNumber,
+                            pageSize = authorsResourceParameters.PageSize
+                        });
+            }
         }
 
         //// creating parent resource without child resorce
