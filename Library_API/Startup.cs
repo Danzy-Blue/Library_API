@@ -6,6 +6,7 @@ using Library.API.Entities;
 using Library.API.Helpers;
 using Library.API.Services;
 using Library_API.Models;
+using Library_API.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
@@ -62,6 +63,8 @@ namespace Library_API
                 implementationFactory.GetService<IActionContextAccessor>().ActionContext;
                 return new UrlHelper(actionContext);
             });
+
+            services.AddTransient<IPropertyMappingService, PropertyMappingService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

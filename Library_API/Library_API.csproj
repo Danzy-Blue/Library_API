@@ -6,13 +6,13 @@
 
   <ItemGroup>
     <Folder Include="Entities\" />
-    <Folder Include="Services\" />
     <Folder Include="wwwroot\" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="AutoMapper" Version="6.2.2" />
     <PackageReference Include="Microsoft.AspNetCore.All" Version="2.0.6" />
+    <PackageReference Include="System.Linq.Dynamic.Core" Version="1.0.8.9" />
   </ItemGroup>
 
 </Project>

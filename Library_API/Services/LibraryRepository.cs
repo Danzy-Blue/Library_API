@@ -1,5 +1,7 @@
 ﻿using Library.API.Entities;
 using Library_API.Helpers;
+using Library_API.Models;
+using Library_API.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,16 +11,18 @@ namespace Library.API.Services
     public class LibraryRepository : ILibraryRepository
     {
         private LibraryContext _context;
+        private IPropertyMappingService propertyMappingService;
 
-        public LibraryRepository(LibraryContext context)
+        public LibraryRepository(LibraryContext context, IPropertyMappingService propertyMappingService)
         {
-            _context = context;
+            this._context = context;
+            this.propertyMappingService = propertyMappingService;
         }
 
         public void AddAuthor(Author author)
         {
             author.Id = Guid.NewGuid();
-            _context.Authors.Add(author);
+            this._context.Authors.Add(author);
 
             // the repository fills the id (instead of using identity columns)
             if (author.Books.Any())
@@ -67,9 +71,13 @@ namespace Library.API.Services
 
         public PagedList<Author> GetAuthors(AuthorsResourceParameters authorsResourceParameters)
         {
-            var collectionBeforePaging = _context.Authors
-                .OrderBy(a => a.FirstName)
-                .ThenBy(a => a.LastName).AsQueryable();
+            ////var collectionBeforePaging = _context.Authors
+            ////    .OrderBy(a => a.FirstName)
+            ////    .ThenBy(a => a.LastName).AsQueryable();
+
+            var collectionBeforePaging = this._context.Authors.
+                ApplySort(authorsResourceParameters.OrderBy, propertyMappingService.GetPropertyMapping<AuthorDto, Author>());
+
 
             if (!string.IsNullOrEmpty(authorsResourceParameters.Genre))
             {
