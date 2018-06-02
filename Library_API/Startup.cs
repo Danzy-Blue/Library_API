@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Library.API.Entities;
 using Library.API.Helpers;
 using Library.API.Services;
+using Library_API.Helpers;
 using Library_API.Models;
 using Library_API.Services;
 using Microsoft.AspNetCore.Builder;
@@ -19,6 +20,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json.Serialization;
 
 namespace Library_API
 {
@@ -35,7 +37,7 @@ namespace Library_API
         // For more information on how to configure your application, visit http://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
-            ////services.AddMvc();
+            //services.AddMvc();
             services.AddMvc(setupAction =>
             {
                 setupAction.ReturnHttpNotAcceptable = true;
@@ -43,9 +45,11 @@ namespace Library_API
                 setupAction.InputFormatters.Add(new XmlDataContractSerializerInputFormatter());
                 // setupAction.InputFormatters.Add(new XmlSerializerInputFormatter());
                 // we can use xml serializer but it dosent support datetime n various other property, we have to handle it
+            })
+            .AddJsonOptions(setupAction =>
+            {
+                setupAction.SerializerSettings.ContractResolver = new CamelCasePropertyNamesContractResolver();
             });
-
-
 
             // register the DbContext on the container, getting the connection string from
             // appSettings (note: use this during development; in a production environment,
@@ -65,6 +69,7 @@ namespace Library_API
             });
 
             services.AddTransient<IPropertyMappingService, PropertyMappingService>();
+            services.AddTransient<ITypeHelperService, TypeHelperService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

@@ -20,16 +20,18 @@ namespace Library_API.Controllers
         public ILibraryRepository libraryRepository;
         private IUrlHelper urlHelper;
         private IPropertyMappingService propertyMappingService;
+        private ITypeHelperService typeHelperService;
 
-        public AuthorsController(ILibraryRepository libraryRepository, IUrlHelper urlHelper, IPropertyMappingService propertyMappingService)
+        public AuthorsController(ILibraryRepository libraryRepository, IUrlHelper urlHelper, IPropertyMappingService propertyMappingService, ITypeHelperService typeHelperService)
         {
             this.libraryRepository = libraryRepository;
             this.urlHelper = urlHelper;
             this.propertyMappingService = propertyMappingService;
+            this.typeHelperService = typeHelperService;
         }
 
         [HttpGet("{authorID}", Name = "GetAuthor")]
-        public IActionResult GetAuthor([FromRoute]Guid authorID)
+        public IActionResult GetAuthor([FromRoute]Guid authorID, [FromQuery] string fields)
         {
             if (!libraryRepository.AuthorExists(authorID))
             {
@@ -37,10 +39,15 @@ namespace Library_API.Controllers
 
             }
 
+            if (!typeHelperService.TypeHasProperties<AuthorDto>(fields))
+            {
+                return BadRequest();
+            }
+
             var authorFromRepo = libraryRepository.GetAuthor(authorID);
             var author = Mapper.Map<AuthorDto>(authorFromRepo);
 
-            return Ok(author);
+            return Ok(author.ShapeData(fields));
             ////return new JsonResult(author);
 
         }
@@ -56,6 +63,16 @@ namespace Library_API.Controllers
                 return BadRequest();
             }
 
+            // this is wrong approach, may be application can support  DATA SHAPING and not OrderBy.
+            // Its also good  sepration of concern to have seprated
+            ////if (!propertyMappingService.ValidateMappingExistsFor<AuthorDto, Author>(authorsResourceParameters.Fields))
+            ////{
+            ////    return BadRequest();
+            ////}
+            if (!typeHelperService.TypeHasProperties<AuthorDto>(authorsResourceParameters.Fields))
+            {
+                return BadRequest();
+            }
 
             var authorsFromRepo = libraryRepository.GetAuthors(authorsResourceParameters);
             var previousPageLink = authorsFromRepo.HasPrevious ? CreateAuthorsResourceUri(authorsResourceParameters, ResourceUriType.PreviousPage) : null;
@@ -74,8 +91,9 @@ namespace Library_API.Controllers
 
             var authors = Mapper.Map<IEnumerable<AuthorDto>>(authorsFromRepo);
 
-            return new JsonResult(authors);
-
+            // here shapingData creates an issue in DefaultContractResolver, so name is returned as Name(i.e. non CamleCase)
+            // can be resolved to setup CamelCasePropertyNamesContractResolver for JSon in service.
+            return new JsonResult(authors.ShapeData(authorsResourceParameters.Fields));
         }
 
         private string CreateAuthorsResourceUri(AuthorsResourceParameters authorsResourceParameters, ResourceUriType type)
@@ -86,6 +104,7 @@ namespace Library_API.Controllers
                     return urlHelper.Link("GetAuthors",
                         new
                         {
+                            fields = authorsResourceParameters.Fields,
                             orderBy = authorsResourceParameters.OrderBy,
                             searchQuery = authorsResourceParameters.SearchQuery,
                             genre = authorsResourceParameters.Genre,
@@ -97,6 +116,7 @@ namespace Library_API.Controllers
                     return urlHelper.Link("GetAuthors",
                         new
                         {
+                            fields = authorsResourceParameters.Fields,
                             orderBy = authorsResourceParameters.OrderBy,
                             searchQuery = authorsResourceParameters.SearchQuery,
                             genre = authorsResourceParameters.Genre,
@@ -107,6 +127,7 @@ namespace Library_API.Controllers
                     return urlHelper.Link("GetAuthors",
                         new
                         {
+                            fields = authorsResourceParameters.Fields,
                             orderBy = authorsResourceParameters.OrderBy,
                             searchQuery = authorsResourceParameters.SearchQuery,
                             genre = authorsResourceParameters.Genre,
