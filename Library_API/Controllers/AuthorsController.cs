@@ -55,8 +55,7 @@ namespace Library_API.Controllers
 
 
         [HttpGet(Name = "GetAuthors")]
-        ////public IActionResult GetAuthors([FromQuery(Name = "Page")]int pageNumber = 1, [FromQuery]int pageSize = 10)
-        public IActionResult GetAuthors(AuthorsResourceParameters authorsResourceParameters)
+        public IActionResult GetAuthors(AuthorsResourceParameters authorsResourceParameters, [FromHeader(Name = "Accept")] string mediaType)
         {
 
             if (!propertyMappingService.ValidateMappingExistsFor<AuthorDto, Author>(authorsResourceParameters.OrderBy))
@@ -64,12 +63,6 @@ namespace Library_API.Controllers
                 return BadRequest();
             }
 
-            // this is wrong approach, may be application can support  DATA SHAPING and not OrderBy.
-            // Its also good  sepration of concern to have seprated
-            ////if (!propertyMappingService.ValidateMappingExistsFor<AuthorDto, Author>(authorsResourceParameters.Fields))
-            ////{
-            ////    return BadRequest();
-            ////}
             if (!typeHelperService.TypeHasProperties<AuthorDto>(authorsResourceParameters.Fields))
             {
                 return BadRequest();
@@ -77,36 +70,58 @@ namespace Library_API.Controllers
 
             var authorsFromRepo = libraryRepository.GetAuthors(authorsResourceParameters);
 
-            var paginationMetadata = new
-            {
-                totalCount = authorsFromRepo.TotalCount,
-                pageSize = authorsFromRepo.PageSize,
-                currentPage = authorsFromRepo.CurrentPage,
-                totalPages = authorsFromRepo.TotalPages
-            };
-
-            Response.Headers.Add("X-Pagination", JsonConvert.SerializeObject(paginationMetadata));
-
             var authors = Mapper.Map<IEnumerable<AuthorDto>>(authorsFromRepo);
 
-
-            var links = CreateLinksForAuthors(authorsResourceParameters, authorsFromRepo.HasNext, authorsFromRepo.HasPrevious);
-            var shapedAuthors = authors.ShapeData(authorsResourceParameters.Fields);
-            var shapedAuthorsWithLinks = shapedAuthors.Select(author =>
+            if (mediaType == "application/vnd.danzy.hateoas+json")
             {
-                var authorAsDictionary = author as IDictionary<string, object>;
-                var authorLinks = CreateLinksForAuthor((Guid)authorAsDictionary["Id"], authorsResourceParameters.Fields);
-                authorAsDictionary.Add("links", authorLinks);
-                return authorAsDictionary;
-            });
+                var paginationMetadata = new
+                {
+                    totalCount = authorsFromRepo.TotalCount,
+                    pageSize = authorsFromRepo.PageSize,
+                    currentPage = authorsFromRepo.CurrentPage,
+                    totalPages = authorsFromRepo.TotalPages
+                };
 
-            var linkedCollectionsResource = new
+                Response.Headers.Add("X-Pagination", JsonConvert.SerializeObject(paginationMetadata));
+
+
+                var links = CreateLinksForAuthors(authorsResourceParameters, authorsFromRepo.HasNext, authorsFromRepo.HasPrevious);
+                var shapedAuthors = authors.ShapeData(authorsResourceParameters.Fields);
+                var shapedAuthorsWithLinks = shapedAuthors.Select(author =>
+                {
+                    var authorAsDictionary = author as IDictionary<string, object>;
+                    var authorLinks = CreateLinksForAuthor((Guid)authorAsDictionary["Id"], authorsResourceParameters.Fields);
+                    authorAsDictionary.Add("links", authorLinks);
+                    return authorAsDictionary;
+                });
+
+
+                var linkedCollectionsResource = new
+                {
+                    value = shapedAuthorsWithLinks,
+                    links = links
+                };
+
+                return Ok(linkedCollectionsResource);
+            }
+            else
             {
-                value = shapedAuthorsWithLinks,
-                links = links
-            };
+                var previousPageLink = authorsFromRepo.HasPrevious ? CreateAuthorsResourceUri(authorsResourceParameters, ResourceUriType.PreviousPage) : null;
+                var nextPageLink = authorsFromRepo.HasNext ? CreateAuthorsResourceUri(authorsResourceParameters, ResourceUriType.NextPage) : null;
+                var paginationMetadata = new
+                {
+                    totalCount = authorsFromRepo.TotalCount,
+                    pageSize = authorsFromRepo.PageSize,
+                    currentPage = authorsFromRepo.CurrentPage,
+                    totalPages = authorsFromRepo.TotalPages,
+                    previousPageLink = previousPageLink,
+                    nextPageLink = nextPageLink
+                };
 
-            return Ok(linkedCollectionsResource);
+                Response.Headers.Add("X-Pagination", JsonConvert.SerializeObject(paginationMetadata));
+
+                return new JsonResult(authors.ShapeData(authorsResourceParameters.Fields));
+            }
         }
 
         private string CreateAuthorsResourceUri(AuthorsResourceParameters authorsResourceParameters, ResourceUriType type)
@@ -153,7 +168,8 @@ namespace Library_API.Controllers
 
         // creating child resorce togather with parent resource
         // i.e. creating Auther and book togather
-        [HttpPost()]
+        [HttpPost(Name = "CreateAuthor")]
+        [RequestHeaderMatchesMediaType("Content-Type", new[] { "application/vnd.danzy.author.full+json" })]
         public IActionResult CreateAuthor([FromBody] AuthorCreationDto author)
         {
             if (author == null)
@@ -181,6 +197,36 @@ namespace Library_API.Controllers
                 linkedResourceToReturn);
         }
 
+        [HttpPost(Name = "CreateAuthorWithDateOfDeath")]
+        [RequestHeaderMatchesMediaType("Content-Type",
+            new[]{ "application/vnd.danzy.authorwithdateofdeath.full+json",
+                   "application/vnd.danzy.authorwithdateofdeath.full+xml" })]
+        public IActionResult CreateAuthorWithDateOfDeath([FromBody] AuthorCreationDto author)
+        {
+            if (author == null)
+            {
+                return BadRequest();
+            }
+
+            var authorEntity = Mapper.Map<Author>(author);
+            libraryRepository.AddAuthor(authorEntity);
+
+            if (!libraryRepository.Save())
+            {
+                throw new Exception("error !!!");
+                ////return StatusCode(500, "some error");
+            }
+
+            var authorDto = Mapper.Map<AuthorDto>(authorEntity);
+
+            var links = CreateLinksForAuthor(authorDto.Id, null);
+            var linkedResourceToReturn = authorDto.ShapeData(null) as IDictionary<string, object>;
+            linkedResourceToReturn.Add("links", links);
+
+            return CreatedAtRoute("GetAuthor",
+                new { authorID = linkedResourceToReturn["Id"] },
+                linkedResourceToReturn);
+        }
 
         [HttpPost("{authorID}")]
         public IActionResult BlockAuthor(Guid authorID)

@@ -42,9 +42,26 @@ namespace Library_API
             {
                 setupAction.ReturnHttpNotAcceptable = true;
                 setupAction.OutputFormatters.Add(new XmlDataContractSerializerOutputFormatter());
-                setupAction.InputFormatters.Add(new XmlDataContractSerializerInputFormatter());
-                // setupAction.InputFormatters.Add(new XmlSerializerInputFormatter());
-                // we can use xml serializer but it dosent support datetime n various other property, we have to handle it
+                //setupAction.InputFormatters.Add(new XmlDataContractSerializerInputFormatter());
+
+                var xmlDataContractSerializerInputFormatter = new XmlDataContractSerializerInputFormatter();
+                xmlDataContractSerializerInputFormatter.SupportedMediaTypes.Add("application/vnd.danzy.authorwithdateofdeath.full+xml");
+                setupAction.InputFormatters.Add(xmlDataContractSerializerInputFormatter);
+
+                var jsonOutputFormatter = setupAction.OutputFormatters.OfType<JsonOutputFormatter>().FirstOrDefault();
+                if (jsonOutputFormatter != null)
+                {
+                    jsonOutputFormatter.SupportedMediaTypes.Add("application/vnd.danzy.hateoas+json");
+                }
+
+
+                var jsonInputFormatter = setupAction.InputFormatters.OfType<JsonInputFormatter>().FirstOrDefault();
+                if (jsonInputFormatter != null)
+                {
+                    jsonInputFormatter.SupportedMediaTypes.Add("application/vnd.danzy.author.full+json");
+                    jsonInputFormatter.SupportedMediaTypes.Add("application/vnd.danzy.authorwithdateofdeath.full+json");
+                }
+
             })
             .AddJsonOptions(setupAction =>
             {
@@ -111,11 +128,13 @@ namespace Library_API
             {
                 con.CreateMap<Author, AuthorDto>()
                   .ForMember("Name", dest => dest.MapFrom(src => $"{src.FirstName} {src.LastName}"))
-                  .ForMember(dest => dest.Age, option => option.MapFrom(src => src.DateOfBirth.GetCurrentAge()));
+                  .ForMember(dest => dest.Age, option => option.MapFrom(src => src.DateOfBirth.GetCurrentAge(src.DateOfDeath)));
 
                 con.CreateMap<Book, BookDto>();
 
                 con.CreateMap<AuthorCreationDto, Author>();
+                con.CreateMap<AuthorCreationWithDateOfDeathDto, Author>();
+
                 con.CreateMap<BookCreationDto, Book>();
                 con.CreateMap<BookUpdationDto, Book>();
                 con.CreateMap<Book, BookUpdationDto>();
