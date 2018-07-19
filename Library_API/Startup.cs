@@ -27,6 +27,7 @@ namespace Library_API
     public class Startup
     {
         public static IConfiguration Configuration;
+        private IHostingEnvironment _env;
 
         public Startup(IConfiguration configuration)
         {
@@ -40,6 +41,12 @@ namespace Library_API
             //services.AddMvc();
             services.AddMvc(setupAction =>
             {
+                if(_env.IsProduction())
+                {
+                    setupAction.SslPort = 4444;
+                }
+                setupAction.Filters.Add(new RequireHttpsAttribute());
+
                 setupAction.ReturnHttpNotAcceptable = true;
                 setupAction.OutputFormatters.Add(new XmlDataContractSerializerOutputFormatter());
                 //setupAction.InputFormatters.Add(new XmlDataContractSerializerInputFormatter());
@@ -93,6 +100,7 @@ namespace Library_API
         public void Configure(IApplicationBuilder app, IHostingEnvironment env,
         ILoggerFactory loggerFactory, LibraryContext libraryContext)
         {
+            _env = env;
             loggerFactory.AddConsole();
             loggerFactory.AddDebug(LogLevel.Information);
             if (env.IsDevelopment())
